@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Expo / React Native
+.expo/
+.expo-shared/
+
+# Cloudflare Worker config & secrets
+**/.wrangler/
+**/.env
+**/.dev.vars
+
+# OS-specific files
+.DS_Store
+Thumbs.db

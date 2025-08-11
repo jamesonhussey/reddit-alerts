@@ -1,0 +1,24 @@
+{
+  "name": "reddit-alerts-worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "test": "vitest",
+    "cf-typegen": "wrangler types"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.19",
+    "@cloudflare/workers-types": "^4.20250810.0",
+    "typescript": "^5.5.2",
+    "vitest": "~3.2.0",
+    "wrangler": "^4.28.1",
+    "@types/react": "~19.0.10"
+  },
+  "dependencies": {
+    "expo-device": "^7.1.4",
+    "expo-notifications": "^0.31.4"
+  }
+}

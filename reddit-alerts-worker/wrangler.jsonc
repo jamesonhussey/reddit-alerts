@@ -1,0 +1,21 @@
+{
+  "name": "reddit-alerts-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-08-10",
+
+  // Non-secret vars (safe to keep here)
+  "vars": {
+    "REDDIT_USER_AGENT": "reddit-alerts/0.1 by KodoMauve",
+    "REDDIT_CLIENT_ID": "5Q6cGVHRb6c1mCtn9otVng"
+  },
+
+  // KV binding (note: this must be an ARRAY)
+  "kv_namespaces": [
+    { "binding": "KV", "id": "7fc083576cfa4019b4fcd850ed9745e0" }
+  ],
+
+  // Cron every 2 minutes
+  "triggers": {
+    "crons": ["*/2 * * * *"]
+  }
+}
