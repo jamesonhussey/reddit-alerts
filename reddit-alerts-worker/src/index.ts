@@ -51,7 +51,7 @@ async function getAppAccessToken(client_id: string, client_secret: string): Prom
 
   const body = new URLSearchParams({
     grant_type: "client_credentials",
-    scope: "read", // optional but harmless; some setups expect a scope
+    scope: "read", // This is optional but harmless. some setups expect a scope
   });
 
   const resp = await fetch("https://www.reddit.com/api/v1/access_token", {
@@ -64,7 +64,7 @@ async function getAppAccessToken(client_id: string, client_secret: string): Prom
     body,
   });
 
-  const txt = await resp.text(); // read as text so we can log it raw
+  const txt = await resp.text();
   if (!resp.ok) {
     console.log("Token exchange failed:", resp.status, txt);
     throw new Error(`App token failed: ${resp.status}`);
@@ -127,6 +127,45 @@ async function handleAddRule(req: Request, env: Env) {
   return json({ ok: true });
 }
 
+async function handleListRules(req: Request, env: Env) {
+  const { expo_push_token } = await readJson(req);
+  if (!expo_push_token) return json({ error: "Missing expo_push_token" }, { status: 400 });
+  const key = `rules:${expo_push_token}`;
+  const rules: Rule[] = JSON.parse((await env.KV.get(key)) || "[]");
+  return json({ rules });
+}
+
+async function handleDeleteRule(req: Request, env: Env) {
+  const { expo_push_token, index } = await readJson<{ expo_push_token: string; index: number }>(req);
+  if (!expo_push_token || typeof index !== "number") {
+    return json({ error: "Missing expo_push_token or index" }, { status: 400 });
+  }
+  const key = `rules:${expo_push_token}`;
+  const rules: Rule[] = JSON.parse((await env.KV.get(key)) || "[]");
+  if (index < 0 || index >= rules.length) return json({ error: "Index out of range" }, { status: 400 });
+  rules.splice(index, 1);
+  await env.KV.put(key, JSON.stringify(rules));
+  return json({ ok: true });
+}
+
+type AlertItem = {
+  id: string;
+  subreddit: string;
+  title: string;
+  url: string;
+  ts: number;          // Date.now() - Detection time
+  postedTs?: number;   // Reddit's post timestamp (ms)
+};
+
+async function handleListAlerts(req: Request, env: Env) {
+  const { expo_push_token, limit = 100 } = await readJson<any>(req);
+  if (!expo_push_token) return json({ error: "Missing expo_push_token" }, { status: 400 });
+  const akey = `alerts:${expo_push_token}`;
+  const alerts: AlertItem[] = JSON.parse((await env.KV.get(akey)) || "[]");
+  alerts.sort((a, b) => (b.postedTs ?? b.ts ?? 0) - (a.postedTs ?? a.ts ?? 0));
+  return json({ alerts: alerts.slice(0, Math.min(300, limit)) });
+}
+
 async function handleRoutes(req: Request, env: Env) {
   const url = new URL(req.url);
   if (req.method === "OPTIONS") return withCORS({ status: 204 });
@@ -137,6 +176,16 @@ async function handleRoutes(req: Request, env: Env) {
 
   if (req.method === "GET" && url.pathname === "/") {
     return json({ ok: true, mode: "app-only-oauth" });
+  }
+
+  if (req.method === "POST" && url.pathname === "/rules/list") {
+  return handleListRules(req, env);
+  }
+  if (req.method === "POST" && url.pathname === "/rules/delete") {
+  return handleDeleteRule(req, env);
+  }
+  if (req.method === "POST" && url.pathname === "/alerts/list") {
+  return handleListAlerts(req, env);
   }
 
   return json({ error: "Not found" }, { status: 404 });
@@ -167,7 +216,7 @@ async function runCron(env: Env) {
     return; // no token, nothing to do
   }
 
-  // Log how many rule keys exist so we know the worker sees them
+  // Log how many rule keys exist so we can tell if worker sees them
   const firstPage = await env.KV.list<unknown>({ prefix: "rules:" });
   const totalRulesKeys = firstPage.keys.length;
   console.log(`Cron start: found ${totalRulesKeys} rule key(s)`);
@@ -183,63 +232,91 @@ async function runCron(env: Env) {
       if (!rulesStr) continue;
       const rules: Rule[] = JSON.parse(rulesStr);
 
+      const alertsKey = `alerts:${expoToken}`;
+      let alertBuf = JSON.parse((await env.KV.get(alertsKey)) || "[]") as any[];
+      const existing = new Set<string>(
+        alertBuf.map((a: { id: string; subreddit: string }) => `${a?.id ?? ""}-${a?.subreddit ?? ""}`)
+      );
+
       for (const rule of rules) {
         try {
           const posts = await fetchNewPosts(rule.subreddit, appToken, env.REDDIT_USER_AGENT);
+
+          // find only posts since last seen
           const lastIdx = rule.lastSeenFullname
             ? posts.findIndex((p: any) => p?.name === rule.lastSeenFullname)
             : -1;
-
           const fresh = lastIdx >= 0 ? posts.slice(0, lastIdx) : posts;
 
           if (fresh[0]?.name) {
             rule.lastSeenFullname = fresh[0].name;
           }
 
-          // Keyword matching
+          // Keyword matching (title + selftext)
           const kw = (rule.keyword || "").toLowerCase();
           const matches = fresh.filter((p: any) => {
             const hay = `${p?.title ?? ""}\n${p?.selftext ?? ""}`.toLowerCase();
             return kw && hay.includes(kw);
           });
 
-          // Log-only / send block
           if (matches.length === 0) {
             console.log(`No matches for ${expoToken} in r/${rule.subreddit} this run.`);
           } else {
-            // optional: de-dupe by fullname within this tick
-            const seen = new Set<string>();
+            // De-dupe within this cron tick
+            const seenThisRun = new Set<string>();
 
             for (const post of matches) {
-              const fullname: string = post?.name ?? ""; // e.g., "t3_xxxxxx"
-              if (fullname && seen.has(fullname)) continue;
-              if (fullname) seen.add(fullname);
-
+              const fullname: string = post?.name ?? "";
               const postTitle: string = post?.title ?? "(No title)";
-              // Reddit API includes a "permalink" like "/r/sub/comments/abc123/title/"
               const postUrl: string =
                 (post?.permalink ? `https://reddit.com${post.permalink}` : "") ||
                 (post?.url ?? "");
 
-              const title = `Match found in r/${rule.subreddit}`;
-              const body = postTitle;
+              const key = `${fullname}-${rule.subreddit}`;
 
-              // Your log-only send
-              await sendExpoPush(expoToken, title, body);
+              // Skip if already recorded/sent this post for this subreddit, either previously or earlier this run. More de-dupe
+              if (existing.has(key) || (fullname && seenThisRun.has(key))) {
+                continue;
+              }
 
-              // Extra detailed log so you can inspect for duplicates/weirdness
+              // mark as seen to avoid duplicates in this run and in future runs
+              if (fullname) seenThisRun.add(key);
+              existing.add(key);
+
+              // Log-only "send"
+              await sendExpoPush(expoToken, `Match found in r/${rule.subreddit}`, postTitle);
+
+              // Detail log
               console.log(
                 `→ Post matched:\n` +
                   `   - id: ${fullname}\n` +
                   `   - title: ${postTitle}\n` +
                   `   - url: ${postUrl}`
               );
+
+              // Reddit's timestamp (seconds) -> ms
+              const postedTs = (typeof post?.created_utc === "number")
+                ? Math.round(post.created_utc * 1000)
+                : Date.now();
+
+              alertBuf.unshift({
+                id: fullname || Math.random().toString(36).slice(2),
+                subreddit: rule.subreddit,
+                title: postTitle,
+                url: postUrl,
+                ts: Date.now(),
+                postedTs,
+              });
             }
           }
         } catch {
           // ignore this rule this round
         }
       }
+
+      // Cap stored alerts per device to keep KV small
+      if (alertBuf.length > 200) alertBuf = alertBuf.slice(0, 200);
+      await env.KV.put(alertsKey, JSON.stringify(alertBuf));
 
       // persist any lastSeen updates
       await env.KV.put(entry.name, JSON.stringify(rules));
@@ -252,6 +329,7 @@ async function runCron(env: Env) {
     }
   }
 }
+
 
 // ---------- Worker export ----------
 export default {
@@ -267,7 +345,7 @@ export default {
     try {
       await runCron(env);
     } catch {
-      // swallow errors; cron runs again
+      // swallow errors -> cron runs again
     }
   },
 };
