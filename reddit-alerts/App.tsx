@@ -3,6 +3,7 @@ import { Button, Text, TextInput, View, Alert, Platform } from "react-native";
 import * as AuthSession from "expo-auth-session";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
+import { SafeAreaView, StatusBar, Pressable, KeyboardAvoidingView, StyleSheet } from "react-native";
 
 const REDDIT_CLIENT_ID = "QsQmq8vwjVqTKaHrUljEmg";
 const WORKER_BASE_URL = "https://reddit-alerts-worker.reddit-alerts-worker.workers.dev"; // e.g. https://alerts.yourdomain.workers.dev
@@ -113,46 +114,123 @@ export default function App() {
   }, [response]);
 
   const onSaveRule = async () => {
-    if (!expoPushToken) return Alert.alert("Enable notifications first.");
-    if (!subreddit || !keyword) return Alert.alert("Enter subreddit and keyword.");
+  // allow debug mode when we don't have a real push token
+  const tokenToUse =
+    expoPushToken && expoPushToken.length > 0
+      ? expoPushToken
+      : `debug:${Platform.OS}-${Date.now().toString(36)}`;
+
+  if (!subreddit || !keyword) return Alert.alert("Enter subreddit and keyword.");
+
+  console.log("Saving rule with token:", tokenToUse);
+
+  try {
     const res = await fetch(`${WORKER_BASE_URL}/rules`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        subreddit,
-        keyword,
-        expo_push_token: expoPushToken,
+        subreddit: subreddit.trim(),
+        keyword: keyword.trim(),
+        expo_push_token: tokenToUse,
       }),
     });
-    if (!res.ok) return Alert.alert("Error saving rule");
-    Alert.alert("Saved!", `You'll be alerted for r/${subreddit} posts containing "${keyword}".`);
-    setSubreddit(""); setKeyword("");
-  };
+
+    if (!res.ok) {
+      const msg = await res.text();
+      return Alert.alert("Error saving rule", msg);
+    }
+
+    const modeMsg = tokenToUse.startsWith("debug:")
+      ? " (debug mode: no real push, check Worker logs)"
+      : "";
+    Alert.alert("Saved!", `You'll be alerted for r/${subreddit} posts containing "${keyword}".${modeMsg}`);
+    setSubreddit("");
+    setKeyword("");
+  } catch (e: any) {
+    Alert.alert("Network error", e?.message || String(e));
+  }
+};
 
   return (
-    <View style={{ flex:1, padding:16, gap:12, justifyContent:"center" }}>
-      <Text style={{ fontSize:24, fontWeight:"600", marginBottom:12 }}>Reddit Alerts</Text>
-      {accessToken ? (
-        <Text>Signed in. Add an alert rule:</Text>
-      ) : (
-        <Button title="Sign in with Reddit" onPress={() => promptAsync()} disabled={!request} />
-      )}
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.container}
+      >
+        <Text style={styles.title}>Reddit Alerts</Text>
 
-      <TextInput
-        placeholder="subreddit (no r/)"
-        value={subreddit}
-        onChangeText={setSubreddit}
-        autoCapitalize="none"
-        style={{ borderWidth:1, padding:10, borderRadius:8 }}
-      />
-      <TextInput
-        placeholder="keyword or phrase"
-        value={keyword}
-        onChangeText={setKeyword}
-        autoCapitalize="none"
-        style={{ borderWidth:1, padding:10, borderRadius:8 }}
-      />
-      <Button title="Save alert rule" onPress={onSaveRule} />
-    </View>
+        <TextInput
+          placeholder="subreddit (no r/)"
+          value={subreddit}
+          onChangeText={setSubreddit}
+          autoCapitalize="none"
+          placeholderTextColor="#6b7280"
+          style={styles.input}
+        />
+        <TextInput
+          placeholder="keyword or phrase"
+          value={keyword}
+          onChangeText={setKeyword}
+          autoCapitalize="none"
+          placeholderTextColor="#6b7280"
+          style={styles.input}
+        />
+
+        <Pressable onPress={onSaveRule} style={styles.button}>
+          <Text style={styles.buttonText}>Save alert rule</Text>
+        </Pressable>
+
+        {/* Optional tiny hint */}
+        <Text style={styles.hint}>
+          No login needed. We’ll check new posts every ~2 minutes.
+        </Text>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: "#f7f7fb", // light, consistent background (no pure white glare)
+  },
+  container: {
+    flex: 1,
+    padding: 20,
+    gap: 12,
+    justifyContent: "center",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 12,
+  },
+  input: {
+    backgroundColor: "#ffffff",   // solid white so it’s readable in dark mode too
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    color: "#111827",             // force dark text (prevents white-on-white)
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  button: {
+    backgroundColor: "#2563eb",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  buttonText: {
+    color: "#ffffff",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  hint: {
+    color: "#6b7280",
+    fontSize: 12,
+    marginTop: 10,
+  },
+});

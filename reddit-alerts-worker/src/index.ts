@@ -41,20 +41,45 @@ async function readJson<T = any>(req: Request): Promise<T> {
 
 // --- App-only OAuth (no user login) ---
 async function getAppAccessToken(client_id: string, client_secret: string): Promise<string> {
-  const body = new URLSearchParams({ grant_type: "client_credentials" });
+  if (!client_id || !client_secret) {
+    console.log("Missing Reddit credentials: ", {
+      hasClientId: !!client_id,
+      hasClientSecret: !!client_secret,
+    });
+    throw new Error("Missing Reddit credentials");
+  }
+
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    scope: "read", // optional but harmless; some setups expect a scope
+  });
 
   const resp = await fetch("https://www.reddit.com/api/v1/access_token", {
     method: "POST",
     headers: {
       Authorization: "Basic " + btoa(`${client_id}:${client_secret}`),
       "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": "reddit-alerts/0.1 by KodoMauve",
     },
     body,
   });
 
-  const j = await resp.json<any>();
-  if (!resp.ok || !j.access_token) {
-    throw new Error("App token failed: " + JSON.stringify(j));
+  const txt = await resp.text(); // read as text so we can log it raw
+  if (!resp.ok) {
+    console.log("Token exchange failed:", resp.status, txt);
+    throw new Error(`App token failed: ${resp.status}`);
+  }
+
+  let j: any;
+  try {
+    j = JSON.parse(txt);
+  } catch {
+    console.log("Non-JSON token response:", txt);
+    throw new Error("Non-JSON token response");
+  }
+  if (!j.access_token) {
+    console.log("No access_token in response:", j);
+    throw new Error("No access_token in response");
   }
   return j.access_token as string;
 }
@@ -74,11 +99,15 @@ async function fetchNewPosts(subreddit: string, accessToken: string, userAgent: 
 }
 
 async function sendExpoPush(expoToken: string, title: string, body: string) {
-  await fetch("https://exp.host/--/api/v2/push/send", {
-    method: "POST",
-    headers: JSON_HEADERS,
-    body: JSON.stringify({ to: expoToken, title, body, sound: null, priority: "default" }),
-  });
+  // Actual push (keep commented out in "log-only" mode)
+  // await fetch("https://exp.host/--/api/v2/push/send", {
+  //   method: "POST",
+  //   headers: JSON_HEADERS,
+  //   body: JSON.stringify({ to: expoToken, title, body, sound: null, priority: "default" }),
+  // });
+
+  // Log-only testing
+  console.log(`Would send push to ${expoToken}: ${title}`);
 }
 
 // ---------- Routes ----------
@@ -92,6 +121,9 @@ async function handleAddRule(req: Request, env: Env) {
   const rules: Rule[] = JSON.parse((await env.KV.get(key)) || "[]");
   rules.push({ subreddit, keyword, lastSeenFullname: null });
   await env.KV.put(key, JSON.stringify(rules));
+
+  console.log("Saved rule:", { key, count: rules.length });
+
   return json({ ok: true });
 }
 
@@ -120,11 +152,25 @@ function isIncomplete(page: KVListPage): page is IncompletePage {
 async function runCron(env: Env) {
   // One app token per tick
   let appToken: string;
+
+  console.log(
+    "Using client_id:",
+    env.REDDIT_CLIENT_ID?.slice(0, 4) + "...",
+    "secret set:",
+    !!env.REDDIT_CLIENT_SECRET
+  );
+
   try {
     appToken = await getAppAccessToken(env.REDDIT_CLIENT_ID, env.REDDIT_CLIENT_SECRET);
   } catch {
+    console.log("Failed to get app token");
     return; // no token, nothing to do
   }
+
+  // Log how many rule keys exist so we know the worker sees them
+  const firstPage = await env.KV.list<unknown>({ prefix: "rules:" });
+  const totalRulesKeys = firstPage.keys.length;
+  console.log(`Cron start: found ${totalRulesKeys} rule key(s)`);
 
   let cursor: string | undefined = undefined;
 
@@ -150,18 +196,43 @@ async function runCron(env: Env) {
             rule.lastSeenFullname = fresh[0].name;
           }
 
-          if (fresh.length) {
-            const kw = (rule.keyword || "").toLowerCase();
-            const hits = fresh.filter((p: any) => {
-              const hay = `${p?.title ?? ""}\n${p?.selftext ?? ""}`.toLowerCase();
-              return kw && hay.includes(kw);
-            });
+          // Keyword matching
+          const kw = (rule.keyword || "").toLowerCase();
+          const matches = fresh.filter((p: any) => {
+            const hay = `${p?.title ?? ""}\n${p?.selftext ?? ""}`.toLowerCase();
+            return kw && hay.includes(kw);
+          });
 
-            for (const h of hits) {
-              await sendExpoPush(
-                expoToken,
-                `Match in r/${rule.subreddit}`,
-                (h?.title ?? "New post matched your rule").slice(0, 150)
+          // Log-only / send block
+          if (matches.length === 0) {
+            console.log(`No matches for ${expoToken} in r/${rule.subreddit} this run.`);
+          } else {
+            // optional: de-dupe by fullname within this tick
+            const seen = new Set<string>();
+
+            for (const post of matches) {
+              const fullname: string = post?.name ?? ""; // e.g., "t3_xxxxxx"
+              if (fullname && seen.has(fullname)) continue;
+              if (fullname) seen.add(fullname);
+
+              const postTitle: string = post?.title ?? "(No title)";
+              // Reddit API includes a "permalink" like "/r/sub/comments/abc123/title/"
+              const postUrl: string =
+                (post?.permalink ? `https://reddit.com${post.permalink}` : "") ||
+                (post?.url ?? "");
+
+              const title = `Match found in r/${rule.subreddit}`;
+              const body = postTitle;
+
+              // Your log-only send
+              await sendExpoPush(expoToken, title, body);
+
+              // Extra detailed log so you can inspect for duplicates/weirdness
+              console.log(
+                `→ Post matched:\n` +
+                  `   - id: ${fullname}\n` +
+                  `   - title: ${postTitle}\n` +
+                  `   - url: ${postUrl}`
               );
             }
           }
