@@ -145,6 +145,14 @@ async function handleDeleteRule(req: Request, env: Env) {
   if (index < 0 || index >= rules.length) return json({ error: "Index out of range" }, { status: 400 });
   rules.splice(index, 1);
   await env.KV.put(key, JSON.stringify(rules));
+
+  // Added this if block to try to fix hanging keys. If it screws something up, just delete it.
+  if (rules.length === 0) {
+    await env.KV.delete(key);
+    await env.KV.delete(`alerts:${expo_push_token}`);
+    return json({ ok: true, deletedKey: true });
+  }
+
   return json({ ok: true });
 }
 
@@ -230,6 +238,14 @@ async function runCron(env: Env) {
       const expoToken = entry.name.slice("rules:".length);
       const rulesStr = await env.KV.get(entry.name);
       if (!rulesStr) continue;
+      // Added this if block to try to fix hanging keys. If it screws something up, just delete it.
+      if (!rulesStr || rulesStr === "[]") {
+        console.log(`Pruning empty rules key: ${entry.name}`);
+        await env.KV.delete(entry.name);
+        await env.KV.delete(`alerts:${entry.name.slice("rules:".length)}`);
+        continue;
+      }
+
       const rules: Rule[] = JSON.parse(rulesStr);
 
       const alertsKey = `alerts:${expoToken}`;
