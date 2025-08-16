@@ -272,7 +272,7 @@ function CreateRuleScreen() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.container}>
-        <Text style={styles.title}>Create Rule</Text>
+        <Text style={styles.title}>Create Alert Rule</Text>
 
         <TextInput
           placeholder="subreddit (no r/)"
@@ -494,7 +494,7 @@ function BundlesScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={[styles.container, { justifyContent: "flex-start" }]}>
-        <Text style={styles.title}>Bundles</Text>
+        <Text style={styles.title}>Rule Bundles</Text>
 
         {/* Keyword input when a bundle is selected */}
         {selected ? (
@@ -519,9 +519,9 @@ function BundlesScreen() {
               <Pressable
                 disabled={busy}
                 onPress={() => { setSelected(null); setQuery(""); }}
-                style={[styles.delBtn, { backgroundColor: "#6b7280" }]}
+                style={[styles.cancelButton]}
               >
-                <Text style={styles.delBtnText}>Cancel</Text>
+                <Text style={styles.buttonText}>Cancel</Text>
               </Pressable>
             </View>
             <Text style={styles.ruleSubText}>
@@ -580,6 +580,15 @@ const styles = StyleSheet.create({
   button: {
     backgroundColor: "#2563eb",
     paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  cancelButton: {
+    backgroundColor: "#6b7280",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 10,
     alignItems: "center",
     marginTop: 4,
