@@ -16,11 +16,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kodomauve.redditalerts",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+      "buildNumber": "1"
     },
     "android": {
+      "package": "com.kodomauve.redditalerts",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -31,9 +31,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "eas": {
-        "projectId": "9c115f37-91ae-42fc-92f5-cab46ddd7d9c"
-      }
+      "eas": { "projectId": "9c115f37-91ae-42fc-92f5-cab46ddd7d9c" }
     },
     "owner": "kodomauve"
   }

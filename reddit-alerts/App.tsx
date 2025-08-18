@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
   Text, TextInput, View, Alert, Platform, FlatList, Pressable,
-  StyleSheet, SafeAreaView, StatusBar, KeyboardAvoidingView, Linking,
+  StyleSheet, SafeAreaView, StatusBar, KeyboardAvoidingView, Linking, Image
 } from "react-native";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
@@ -235,7 +235,7 @@ function CreateRuleScreen() {
   const [keyword, setKeyword] = useState<string>("");
 
   const onSaveRule = useCallback(async () => {
-    const tokenToUse = expoPushToken; // guaranteed stable now
+    const tokenToUse = expoPushToken;
     if (!tokenToUse) return Alert.alert("Token not ready", "Try again in a moment.");
 
 
@@ -271,7 +271,18 @@ function CreateRuleScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.container}>
+      <View style={{ paddingTop: 32, alignItems: "center" }}>
+        <Image
+          source={require("./assets/icon.png")}
+          style={{ width: 96, height: 96, borderRadius: 20, marginBottom: 0 }}
+          resizeMode="contain"
+        />
+      </View>
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.container}
+      >
         <Text style={styles.title}>Create Alert Rule</Text>
 
         <TextInput
@@ -352,7 +363,17 @@ function MyRulesScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={[styles.container, { justifyContent: "flex-start" }]}>
-        <Text style={styles.title}>My Rules</Text>
+
+        {/* Title row with small logo on the left */}
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+          <Image
+            source={require("./assets/icon.png")}
+            style={styles.titleImageSmall}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>My Rules</Text>
+        </View>
+
         <FlatList
           data={rules}
           refreshing={loading}
@@ -374,13 +395,12 @@ function MyRulesScreen() {
         />
         <Pressable style={[styles.button, { marginTop: 12 }]} onPress={load}>
           <Text style={styles.buttonText}>Refresh</Text>
-          {/* Use the above line for refresh button. Below is only for debugging expoPushToken */}
-          {/* <Text>{expoPushToken}</Text> */}
         </Pressable>
       </View>
     </SafeAreaView>
   );
 }
+
 
 
 function AlertsScreen() {
@@ -428,7 +448,15 @@ function AlertsScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={[styles.container, { justifyContent: "flex-start" }]}>
-        <Text style={styles.title}>Alerts</Text>
+        {/* Title row with small logo on the left */}
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+          <Image
+            source={require("./assets/icon.png")}
+            style={styles.titleImageSmall}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>Alerts</Text>
+        </View>
         <FlatList
           data={alerts}
           refreshing={loading}
@@ -494,7 +522,15 @@ function BundlesScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={[styles.container, { justifyContent: "flex-start" }]}>
-        <Text style={styles.title}>Rule Bundles</Text>
+        {/* Title row with small logo on the left */}
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+          <Image
+            source={require("./assets/icon.png")}
+            style={styles.titleImageSmall}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>Rule Bundles</Text>
+        </View>
 
         {/* Keyword input when a bundle is selected */}
         {selected ? (
@@ -621,11 +657,12 @@ const styles = StyleSheet.create({
   borderColor: "#e5e7eb",
   borderRadius: 10,
   padding: 12,
-},
-bundleSubs: {
-  color: "#6b7280",
-  marginTop: 6,
-  fontSize: 12,
-},
+  },
+  bundleSubs: {
+    color: "#6b7280",
+    marginTop: 6,
+    fontSize: 12,
+  },
+  titleImageSmall: { width: 25, height: 25, borderRadius: 5, marginRight: 8, justifyContent: "center", marginBottom: 12, },
 });
 
