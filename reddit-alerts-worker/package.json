@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "expo-device": "^7.1.4",
-    "expo-notifications": "^0.31.4"
+    "expo-notifications": "^0.31.4",
+    "expo-dev-client": "~5.2.4"
   }
 }
