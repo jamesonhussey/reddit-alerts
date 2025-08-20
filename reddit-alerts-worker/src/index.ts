@@ -124,25 +124,62 @@ async function fetchNewPosts(subreddit: string, accessToken: string, userAgent: 
 }
 
 async function sendExpoPush(expoToken: string, title: string, body: string) {
-  await fetch("https://exp.host/--/api/v2/push/send", {
-    method: "POST",
-    headers: { "content-type": "application/json; charset=utf-8" },
-    body: JSON.stringify({ to: expoToken, title, body, sound: null, priority: "default" }),
-  });
+  // Skip emulators / debug tokens; keep logs
+  if (!expoToken || expoToken.startsWith("debug:")) {
+    console.log(`(log-only) Would send push to ${expoToken}: ${title} — ${body}`);
+    return;
+  }
+
+  const payload = {
+    to: expoToken,
+    title,
+    body,
+    sound: null,           // "default" for sound
+    priority: "default",   // can change to "high" but idk why this would be considered high priority
+    channelId: "default",
+  };
+
+  try {
+    const resp = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "accept": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await resp.text();
+
+    if (!resp.ok) {
+      console.log("Expo push HTTP error:", resp.status, text);
+      return;
+    }
+
+    // Response shape for single message:
+    // { data: { status: "ok", id: "..."} }  or  { data: { status: "error", message, details } }
+    let json: any;
+    try { json = JSON.parse(text); } catch {
+      console.log("Expo push: non-JSON response:", text);
+      return;
+    }
+
+    const data = json?.data;
+    if (!data) {
+      console.log("Expo push: unexpected response:", json);
+      return;
+    }
+
+    if (data.status === "ok") {
+      // Optional: log the ticket id for receipts flow
+      // console.log("Expo push sent, id:", data.id);
+    } else {
+      console.log("Expo push error:", { message: data.message, details: data.details });
+    }
+  } catch (err: any) {
+    console.log("Expo push fetch failed:", err?.message || String(err));
+  }
 }
-
-// This commented out function is for testing notifications with logs rather than actual expo push notifications
-
-// async function sendExpoPush(expoToken: string, title: string, body: string) {
-//   // Skip debug tokens
-//   if (expoToken.startsWith("debug:")) {
-//     console.log(`[debug only] Would send push to ${expoToken}: ${title}`);
-//     return;
-//   }
-
-//   // Log-only testing
-//   console.log(`Would send push to ${expoToken}: ${title}`);
-// }
 
 
 // ---------- Routes ----------
@@ -230,11 +267,9 @@ async function handleRoutes(req: Request, env: Env) {
   if (req.method === "POST" && url.pathname === "/rules") {
     return handleAddRule(req, env);
   }
-
   if (req.method === "GET" && url.pathname === "/") {
     return json({ ok: true, mode: "app-only-oauth" });
   }
-
   if (req.method === "POST" && url.pathname === "/rules/list") {
   return handleListRules(req, env);
   }

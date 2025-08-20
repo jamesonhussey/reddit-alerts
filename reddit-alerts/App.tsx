@@ -9,7 +9,6 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-
 // ==== Set your Worker URL ====
 const WORKER_BASE_URL = "https://reddit-alerts-worker.reddit-alerts-worker.workers.dev";
 
@@ -393,9 +392,16 @@ function MyRulesScreen() {
           )}
           ListEmptyComponent={<Text style={styles.hint}>No rules yet.</Text>}
         />
-        <Pressable style={[styles.button, { marginTop: 12 }]} onPress={load}>
+        {/* <Pressable style={[styles.button, { marginTop: 12 }]} onPress={load}>
           <Text style={styles.buttonText}>Refresh</Text>
+        </Pressable> */}
+
+        <Pressable style={[styles.button, { marginTop: 12 }]} onPress={load}>
+          <Text style={styles.buttonText}>
+            {expoPushToken ? expoPushToken : "Refresh"}
+          </Text>
         </Pressable>
+
       </View>
     </SafeAreaView>
   );
@@ -665,4 +671,3 @@ const styles = StyleSheet.create({
   },
   titleImageSmall: { width: 25, height: 25, borderRadius: 5, marginRight: 8, justifyContent: "center", marginBottom: 12, },
 });
-
