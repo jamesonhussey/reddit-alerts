@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "494240349576",
+    "project_id": "reddit-alerts-2e058",
+    "storage_bucket": "reddit-alerts-2e058.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:494240349576:android:3ac613a0db6796d3348e3d",
+        "android_client_info": {
+          "package_name": "com.kodomauve.redditalerts"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHUkhbupL14FIB_qj3y1LdF9PwcnzaJbk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

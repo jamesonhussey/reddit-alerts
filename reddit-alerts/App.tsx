@@ -80,7 +80,7 @@ const BUNDLES: Bundle[] = [
       "Adidas",
       "fashionreps",
       "FashionRepsBST",
-      "Jordan",
+      "Jordans",
       "kicksmarket",
       "Nike",
       "repsneakers", 
