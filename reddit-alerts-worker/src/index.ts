@@ -341,51 +341,53 @@ async function runCron(env: Env) {
       try {
         const posts = await fetchNewPosts(rule.subreddit, appToken, env.REDDIT_USER_AGENT);
 
-        // Only consider posts since last seen
+        // First-run detection
+        const firstRun = !rule.lastSeenFullname;
+
+        // Compute fresh slice as usual for subsequent runs
         const lastIdx = rule.lastSeenFullname
           ? posts.findIndex((p: any) => p?.name === rule.lastSeenFullname)
           : -1;
         const fresh = lastIdx >= 0 ? posts.slice(0, lastIdx) : posts;
 
-        if (fresh[0]?.name && fresh[0].name !== rule.lastSeenFullname) {
-          rule.lastSeenFullname = fresh[0].name;
+        // Always advance the pointer to the newest we've seen
+        if (posts[0]?.name && posts[0].name !== rule.lastSeenFullname) {
+          rule.lastSeenFullname = posts[0].name;
           changed = true;
         }
 
-        // Keyword matching (title + selftext)
+        // Source of posts to check:
+        //  - first run: ALL current posts (populate feed without pushing)
+        //  - later runs: only new posts
+        const source = firstRun ? posts : fresh;
+
+        // Keyword matching (title & post content)
         const kw = (rule.keyword || "").toLowerCase();
-        const matches = fresh.filter((p: any) => {
+        const matches = source.filter((p: any) => {
           const hay = `${p?.title ?? ""}\n${p?.selftext ?? ""}`.toLowerCase();
           return kw && hay.includes(kw);
         });
 
-        if (matches.length === 0) {
-          // quiet now to reduce logs; uncomment if needed:
-          // console.log(`No matches for ${expoToken} in r/${rule.subreddit} this run.`);
-        } else {
-          // De-dupe within this cron tick
+        if (matches.length > 0) {
           const seenThisRun = new Set<string>();
 
           for (const post of matches) {
-            const fullname: string = post?.name ?? ""; // e.g., t3_xxxxxx
+            const fullname: string = post?.name ?? "";
             const postTitle: string = post?.title ?? "(No title)";
             const postUrl: string =
               (post?.permalink ? `https://reddit.com${post.permalink}` : "") ||
               (post?.url ?? "");
             const combinedKey = `${fullname}-${rule.subreddit}`;
 
-            // Skip if already recorded/sent this post for this subreddit
-            if (existing.has(combinedKey) || (fullname && seenThisRun.has(combinedKey))) {
-              continue;
-            }
-
+            if (existing.has(combinedKey) || (fullname && seenThisRun.has(combinedKey))) continue;
             if (fullname) seenThisRun.add(combinedKey);
             existing.add(combinedKey);
 
-            // Send (or log-only if your sendExpoPush is stubbed)
-            await sendExpoPush(expoToken, `Match found in r/${rule.subreddit}`, postTitle);
+            // 👇 Only send push if NOT first run
+            if (!firstRun) {
+              await sendExpoPush(expoToken, `Match found in r/${rule.subreddit}`, postTitle);
+            }
 
-            // Detail log
             console.log(
               `→ Post matched:\n` +
                 `   - id: ${fullname}\n` +
@@ -393,13 +395,9 @@ async function runCron(env: Env) {
                 `   - url: ${postUrl}`
             );
 
-            // Reddit timestamp (seconds) -> ms; fallback to now
             const postedTs =
-              typeof post?.created_utc === "number"
-                ? Math.round(post.created_utc * 1000)
-                : Date.now();
+              typeof post?.created_utc === "number" ? Math.round(post.created_utc * 1000) : Date.now();
 
-            // Prepend newest alert
             alertBuf.unshift({
               id: fullname || Math.random().toString(36).slice(2),
               subreddit: rule.subreddit,
@@ -411,7 +409,7 @@ async function runCron(env: Env) {
           }
         }
       } catch {
-        // ignore this rule this round
+        // ignore
       }
     }
 
