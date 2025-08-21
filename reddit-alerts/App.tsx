@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
   Text, TextInput, View, Alert, Platform, FlatList, Pressable,
-  StyleSheet, SafeAreaView, StatusBar, KeyboardAvoidingView, Linking, Image
+  StyleSheet, StatusBar, KeyboardAvoidingView, Linking, Image
 } from "react-native";
+import {SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { NavigationContainer } from "@react-navigation/native";
@@ -392,15 +393,15 @@ function MyRulesScreen() {
           )}
           ListEmptyComponent={<Text style={styles.hint}>No rules yet.</Text>}
         />
-        {/* <Pressable style={[styles.button, { marginTop: 12 }]} onPress={load}>
-          <Text style={styles.buttonText}>Refresh</Text>
-        </Pressable> */}
-
         <Pressable style={[styles.button, { marginTop: 12 }]} onPress={load}>
+          <Text style={styles.buttonText}>Refresh</Text>
+        </Pressable>
+        {/* Uncomment this if you want to show the expoPushToken in the app itself for debugging purposes */}
+        {/* <Pressable style={[styles.button, { marginTop: 12 }]} onPress={load}>
           <Text style={styles.buttonText}>
             {expoPushToken ? expoPushToken : "Refresh"}
           </Text>
-        </Pressable>
+        </Pressable> */}
 
       </View>
     </SafeAreaView>
@@ -413,6 +414,7 @@ function AlertsScreen() {
   const expoPushToken = useExpoToken();
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const load = useCallback(async () => {
     if (!expoPushToken) return;
