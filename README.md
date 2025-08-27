@@ -27,32 +27,32 @@ https://play.google.com/store/apps/details?id=com.kodomauve.redditalerts
 
 # Quick Start
 
-## 1. Clone repo
+### 1. Clone repo
 git clone https://github.com/your-username/reddit-alerts.git
 
 cd reddit-alerts
 
-## 2. Install frontend dependencies
+### 2. Install frontend dependencies
 cd reddit-alerts-app
 
 npm install
 
-## 3. Install backend dependencies
+### 3. Install backend dependencies
 cd ../reddit-alerts-worker
 
 npm install
 
-## 4. Deploy Worker (requires Wrangler CLI)
+### 4. Deploy Worker (requires Wrangler CLI)
 wrangler login
 
 wrangler publish
 
-## 5. Run Expo app
+### 5. Run Expo app
 cd ../reddit-alerts-app
 
 npx expo start
 
-Setup Notes
+## Setup Notes
 
     Set your WORKER_BASE_URL in App.tsx
 
