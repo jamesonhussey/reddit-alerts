@@ -19,12 +19,13 @@ Tech
 
     Push: Expo Notifications API
 
+
 Google Play Store Page:
 
 https://play.google.com/store/apps/details?id=com.kodomauve.redditalerts
 
 
-Quick Start
+# Quick Start
 
 ## 1. Clone repo
 git clone https://github.com/your-username/reddit-alerts.git
@@ -57,8 +58,8 @@ Setup Notes
 
     Store secrets (like REDDIT_CLIENT_SECRET) in Cloudflare via:
 
-wrangler secret put REDDIT_CLIENT_SECRET
+    wrangler secret put REDDIT_CLIENT_SECRET
 
-Security
+## Security
 
 Secrets like REDDIT_CLIENT_SECRET are stored in Cloudflare, not in the repo.
